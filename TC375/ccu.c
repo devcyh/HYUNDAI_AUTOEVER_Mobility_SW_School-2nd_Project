@@ -1,5 +1,7 @@
 #include "ccu.h"
 
+#include "Ifx_Lwip.h"
+
 #include "my_stdio.h"
 #include "tof.h"
 #include "ultrasonic.h"
