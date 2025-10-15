@@ -83,8 +83,16 @@ static int MotorController_MapJoystickValue (int value, int deadzone)
 // 조이스틱 입력 처리
 bool MotorController_ProcessJoystickInput (int x, int y)
 {
+    static int pre_x;
+    static int pre_y;
+
     if (x < JOYSTICK_MIN || x > JOYSTICK_MAX || y < JOYSTICK_MIN || y > JOYSTICK_MAX)
         return false;
+
+    if (x == pre_x && y == pre_y)
+        return false;
+    pre_x = x;
+    pre_y = y;
 
     int x_speed = MotorController_MapJoystickValue(x, JOYSTICK_DEADZONE);
     int y_speed = MotorController_MapJoystickValue(y, 0); // Y축은 데드존 없음

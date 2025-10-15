@@ -29,8 +29,7 @@ bool SOMEIPSD_Init (void)
         {
             /* Set a receive callback for the pcb */
             udp_recv(g_SOMEIPSD_PCB, (void*) SOMEIPSD_Recv_Callback, NULL);
-            my_printf("SOME/IP-SD PCB Initialized\n");
-            return true;
+            my_printf("SOME/IP-SD PCB Initialized! (Port: %d)\n", PN_SOMEIPSD);
         }
         else
         {
@@ -39,7 +38,13 @@ bool SOMEIPSD_Init (void)
             return false;
         }
     }
-    return false;
+    else
+    {
+        my_printf("Failed to create UDP PCB\n");
+        return false;
+    }
+
+    return true;
 }
 
 void SOMEIPSD_SendOfferService (unsigned char ip_a, unsigned char ip_b, unsigned char ip_c, unsigned char ip_d)

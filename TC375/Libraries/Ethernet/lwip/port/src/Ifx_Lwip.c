@@ -399,6 +399,11 @@ void Ifx_Lwip_init(eth_addr_t ethAddr)
     netif_add(&g_Lwip.netif, &default_ipaddr, &default_netmask, &default_gw,
         (void *)0, ifx_netif_init, ethernet_input);
     netif_set_default(&g_Lwip.netif);
+//    netif_set_up(&g_Lwip.netif);
+
+    g_Lwip.netif.flags |= NETIF_FLAG_IGMP;
+    igmp_start(&g_Lwip.netif);
+
     netif_set_up(&g_Lwip.netif);
 
 #if LWIP_NETIF_HOSTNAME
@@ -415,6 +420,23 @@ void Ifx_Lwip_init(eth_addr_t ethAddr)
 
 #if LWIP_NETIF_EXT_STATUS_CALLBACK
     netif_add_ext_callback(&g_extCallback, netif_state_changed);
+#endif
+
+#if LWIP_IGMP
+    ip_addr_t mc_addr;
+    IP4_ADDR(&mc_addr, 224,224,224,245);
+
+    err_t err = igmp_joingroup(&default_ipaddr, &mc_addr);
+    if (err == ERR_OK)
+    {
+        my_printf("Joined multicast group 224.224.224.245\n");
+//        LWIP_DEBUGF(IFX_LWIP_DEBUG, ("Joined multicast group 224.224.224.245\n"));
+    }
+    else
+    {
+        my_printf("Multicast join failed: %d\n, err");
+//        LWIP_DEBUGF(IFX_LWIP_DEBUG, ("Multicast join failed: %d\n", err));
+    }
 #endif
     LWIP_DEBUGF(IFX_LWIP_DEBUG, ("Ifx_Lwip_init end!\n"));
 }

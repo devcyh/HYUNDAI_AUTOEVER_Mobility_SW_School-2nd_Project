@@ -1,11 +1,8 @@
-#ifndef _SOMEIP_RAW_UDP_SOMEIP_H_
-#define _SOMEIP_RAW_UDP_SOMEIP_H_
+#ifndef SOMEIP_SOMEIP_H_
+#define SOMEIP_SOMEIP_H_
 
 #include <stdbool.h>
 
-bool SOMEIPSD_Init (void);
 bool SOMEIP_Init (void);
-void SOMEIPSD_SendSubEvtGrpAck (unsigned char ip_a, unsigned char ip_b, unsigned char ip_c, unsigned char ip_d);
-void SOMEIPSD_SendOfferService (unsigned char ip_a, unsigned char ip_b, unsigned char ip_c, unsigned char ip_d);
 
-#endif /* 0_SRC_0_APPSW_TRICORE_ETHERNET_APPS_SOMEIP_RAW_UDP_SOMEIP_H_ */
+#endif /* SOMEIP_SOMEIP_H_ */

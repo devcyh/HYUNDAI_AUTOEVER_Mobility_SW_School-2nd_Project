@@ -4,7 +4,7 @@
 #include "IfxCpu.h"
 #include "IfxScuWdt.h"
 
-#include "bluetooth.h"
+//#include "bluetooth.h"
 #include "buzzer.h"
 #include "led.h"
 #include "motor.h"
@@ -15,6 +15,7 @@
 #include "Ifx_Lwip.h"
 #include "geth_lwip.h"
 #include "someip.h"
+#include "someipsd.h"
 
 #define BLUETOOTH_BUFFER_SIZE 64
 #define TOF_BUFFER_SIZE 64
@@ -43,8 +44,8 @@ static bool module_init (void)
             ] = 0x11};
     initLwip(ethAddr); /* Initialize LwIP with the MAC address */
 
-    SOMEIP_Init();
-    SOMEIPSD_Init();
+    modules_init_success = modules_init_success && SOMEIP_Init();
+    modules_init_success = modules_init_success && SOMEIPSD_Init();
 
     return modules_init_success;
 }
