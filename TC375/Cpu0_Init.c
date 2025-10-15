@@ -17,11 +17,11 @@
 #include "someip.h"
 #include "someipsd.h"
 
-#define BLUETOOTH_BUFFER_SIZE 64
+//#define BLUETOOTH_BUFFER_SIZE 64
 #define TOF_BUFFER_SIZE 64
 #define ULTRASONIC_BUFFER_SIZE 64
 
-#define BLUETOOTH_MAX_BYTES_PER_CALL 6 // 주행 명령(크기: 6) 덮어쓰기 가능성 있음. 주차 명령(크기: 2) 덮어쓰기 가능성 없음
+//#define BLUETOOTH_MAX_BYTES_PER_CALL 6 // 주행 명령(크기: 6) 덮어쓰기 가능성 있음. 주차 명령(크기: 2) 덮어쓰기 가능성 없음
 #define TOF_MAX_BYTES_PER_CALL 16 // ToF 센서 패킷 사이즈. 덮어쓰기 안되도록 조절
 #define ULTRASONIC_MAX_EVENTS_PER_CALL (ULTRASONIC_BUFFER_SIZE / 2) // 덮어쓰기 상관 X. 초음파 처리에 너무 시간 걸리지 않도록만 횟수 조절
 
