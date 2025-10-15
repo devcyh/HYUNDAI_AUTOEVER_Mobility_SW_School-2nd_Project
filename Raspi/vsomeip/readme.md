@@ -24,7 +24,12 @@ export VSOMEIP_APPLICATION_NAME=rpi_client_app
 ```
 
 ### SOMEIP-SD 사용 전에
-❗ Make sure that your device has been configured for receiving multicast messages (e.g. by route add -nv  224.224.224.245 dev eth0 or similar; that depends on teh name of your ethernet device).
+❗ Make sure that your device has been configured for receiving multicast messages
+e.g.
+```
+route add -nv  224.224.224.245 dev eth0
+```
+or similar; that depends on teh name of your ethernet device.
 
 ### 현재 프로세스 강제 종료
 
