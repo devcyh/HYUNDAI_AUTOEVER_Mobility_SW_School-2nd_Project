@@ -15,7 +15,7 @@ static void EmerAlert_On (void)
 {
     if (!isAlertOn)
     {
-        LED_On();
+        LED_On(LED_BACK);
         Buzzer_On();
         isAlertOn = true;
     }
@@ -25,7 +25,7 @@ static void EmerAlert_Off (void)
 {
     if (isAlertOn)
     {
-        LED_Off();
+        LED_Off(LED_BACK);
         Buzzer_Off();
         isAlertOn = false;
     }
@@ -37,12 +37,12 @@ static void EmerAlert_Toggle (void)
 
     if (isAlertOn)
     {
-        LED_On();
+        LED_On(LED_BACK);
         Buzzer_On();
     }
     else
     {
-        LED_Off();
+        LED_Off(LED_BACK);
         Buzzer_Off();
     }
 }
