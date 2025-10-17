@@ -16,6 +16,7 @@ static void EmerAlert_On (void)
     if (!isAlertOn)
     {
         LED_On(LED_BACK);
+        Buzzer_SetFrequency(500);
         Buzzer_On();
         isAlertOn = true;
     }
@@ -38,6 +39,7 @@ static void EmerAlert_Toggle (void)
     if (isAlertOn)
     {
         LED_On(LED_BACK);
+        Buzzer_SetFrequency(500);
         Buzzer_On();
     }
     else
