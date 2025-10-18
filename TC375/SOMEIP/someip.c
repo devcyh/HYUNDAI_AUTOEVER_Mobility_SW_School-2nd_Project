@@ -208,16 +208,15 @@ void SOMEIP_Service2_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
                 int32_t frequency = (rxBuf[17] << 24) | (rxBuf[18] << 16) | (rxBuf[19] << 8) | rxBuf[20];
 
                 // 부저 제어 수행
+                Buzzer_SetFrequency(frequency);
+
                 if (buzzer_command == 0x00)
                 {
                     Buzzer_Off();
                 }
                 else if (buzzer_command == 0x01)
                 {
-                    if (Buzzer_SetFrequency(frequency))
-                    {
-                        Buzzer_On();
-                    }
+                    Buzzer_On();
                 }
             }
 
@@ -230,7 +229,6 @@ void SOMEIP_Service2_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
         }
         else if (MethodID == 0x0202U)
         {
-
             // LED Control - Payload에서 led_side 및 led_command 값 추출
             uint8_t led_side = rxBuf[16];       // LED_BACK, LED_FRONT_DOWN, LED_FRONT_UP
             uint8_t led_command = rxBuf[17];    // 0: Off, 1: On, 2: Toggle
