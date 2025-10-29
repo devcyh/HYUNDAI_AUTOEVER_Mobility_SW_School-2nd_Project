@@ -9,6 +9,6 @@ uint64_t STM0_getTimeUs (void);
 uint64_t STM0_getTimeMs (void);
 
 void Stm0_Init (void);
-void Stm0_InterruptAfter (uint64_t delay_us);
+void Stm0_InterruptAfter (uint32_t delay_us);
 
 #endif /* BSW_DRIVER_STM_H_ */

@@ -17,6 +17,9 @@ void core0_main (void)
     if (!core0_init())
         return;
 
+    ip_addr_t broadcast_ip;
+    IP4_ADDR(&broadcast_ip, 192, 168, 2, 255);
+
     while (true)
     {
         /* Process data queues */
@@ -32,7 +35,7 @@ void core0_main (void)
         uint64_t cur_t = STM0_getTimeUs();
         if (cur_t - pre_t > 10000000)
         {
-            SOMEIPSD_SendOfferService(192, 168, 2, 255);
+            SOMEIPSD_SendOfferService(broadcast_ip);
             pre_t = cur_t;
         }
 

@@ -1,4 +1,5 @@
 #include "someip.h"
+#include "someip_cfg.h"
 #include "lwip/opt.h"
 #include "lwip/debug.h"
 #include "lwip/stats.h"
@@ -104,7 +105,7 @@ void SOMEIP_Service1_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
     uint8_t MessageType = rxBuf[14];
 
     // Service ID 및 Message Type 확인
-    if (ServiceID == 0x0100U && MessageType == 0x00)
+    if (ServiceID == SERVICE_ID_SENSOR && MessageType == 0x00)
     {
         uint8_t txBuf[256];
         uint16_t txLen = 0;
@@ -115,21 +116,21 @@ void SOMEIP_Service1_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
         txBuf[14] = 0x80;
 
         // Method ID에 따라 처리
-        if (MethodID == 0x0101U)
+        if (MethodID == METHOD_ID_PR)
         {
             txLen = 16;
             pr_latest_data = PR_GetData();
             my_printf("PR: val=%lu, t=%llu\n", pr_latest_data.val, pr_latest_data.received_time_us);
             txLen = Serialize_PRData(txBuf, txLen, &pr_latest_data);
         }
-        else if (MethodID == 0x0102U)
+        else if (MethodID == METHOD_ID_TOF)
         {
             txLen = 16;
             ToF_GetLatestData(&tof_latest_data);
             my_printf("ToF: dist=%f, t=%llu\n", tof_latest_data.distance_m, tof_latest_data.received_time_us);
             txLen = Serialize_ToFData(txBuf, txLen, &tof_latest_data);
         }
-        else if (MethodID == 0x0103U)
+        else if (MethodID == METHOD_ID_ULT)
         {
             txLen = 16;
             txBuf[txLen++] = ULTRASONIC_COUNT;
@@ -152,7 +153,7 @@ void SOMEIP_Service1_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
             SOMEIP_Send_Data(upcb, txBuf, txLen, addr, port);
         }
     }
-    else if (ServiceID != 0x0100U)
+    else if (ServiceID != METHOD_ID_PR)
     {
         my_printf("Requested Unknown Service ID\n");
     }
@@ -186,7 +187,7 @@ void SOMEIP_Service2_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
     uint8_t MessageType = rxBuf[14];
 
     // Service ID 및 Message Type 확인
-    if (ServiceID == 0x0200U && MessageType == 0x00)
+    if (ServiceID == SERVICE_ID_CONTROL && MessageType == 0x00)
     {
         uint8_t txBuf[256];
         uint16_t txLen = 0;
@@ -199,7 +200,7 @@ void SOMEIP_Service2_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
         bool isEmerAlertOn = EmerAlert_GetData().interval_ms >= 0 ? true : false;
 
         // Method ID에 따라 처리
-        if (MethodID == 0x0201U)
+        if (MethodID == METHOD_ID_BUZZER)
         {
             if (!isEmerAlertOn)
             {
@@ -227,7 +228,7 @@ void SOMEIP_Service2_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
             txLen = 16;
             txLen = Serialize_BuzzerData(txBuf, txLen, &buzzer_latest_data);
         }
-        else if (MethodID == 0x0202U)
+        else if (MethodID == METHOD_ID_LED)
         {
             // LED Control - Payload에서 led_side 및 led_command 값 추출
             uint8_t led_side = rxBuf[16];       // LED_BACK, LED_FRONT_DOWN, LED_FRONT_UP
@@ -269,7 +270,7 @@ void SOMEIP_Service2_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
             SOMEIP_Send_Data(upcb, txBuf, txLen, addr, port);
         }
     }
-    else if (ServiceID != 0x0200U)
+    else if (ServiceID != SERVICE_ID_CONTROL)
     {
         my_printf("Requested Unknown Service ID\n");
     }
@@ -303,7 +304,7 @@ void SOMEIP_Service3_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
     uint8_t MessageType = rxBuf[14];
 
     // Service ID 및 Message Type 확인
-    if (ServiceID == 0x0300U && MessageType == 0x00)
+    if (ServiceID == SERVICE_ID_SYSTEM && MessageType == 0x00)
     {
         uint8_t txBuf[256];
         uint16_t txLen = 0;
@@ -314,7 +315,7 @@ void SOMEIP_Service3_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
         txBuf[14] = 0x80;
 
         // Method ID에 따라 처리
-        if (MethodID == 0x0301U)
+        if (MethodID == METHOD_ID_ALERT)
         {
             // Emergency Alert Control - Payload에서 emerAlert_cycle_ms 값 추출
             int64_t emerAlert_cycle_ms = ((int64_t) rxBuf[16] << 56) | ((int64_t) rxBuf[17] << 48)
@@ -332,7 +333,7 @@ void SOMEIP_Service3_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
             txLen = 16;
             txLen = Serialize_EmerAlertData(txBuf, txLen, &emerAlert_latest_data);
         }
-        else if (MethodID == 0x0302U)
+        else if (MethodID == METHOD_ID_MOTOR)
         {
             // Motor Control - Payload에서 motor_x, motor_y 값 추출
             int motor_x = (rxBuf[16] << 24) | (rxBuf[17] << 16) | (rxBuf[18] << 8) | rxBuf[19];
@@ -361,7 +362,7 @@ void SOMEIP_Service3_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
             SOMEIP_Send_Data(upcb, txBuf, txLen, addr, port);
         }
     }
-    else if (ServiceID != 0x0300U)
+    else if (ServiceID != SERVICE_ID_SYSTEM)
     {
         my_printf("Requested Unknown Service ID\n");
     }
