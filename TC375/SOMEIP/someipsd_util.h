@@ -2,6 +2,7 @@
 #define SOMEIP_SOMEIPSD_UTIL_H_
 
 #include <stdint.h>
+#include "ip_addr.h"
 
 uint16_t SOMEIPSD_AddHeader (uint8_t *txBuf, uint32_t length, uint16_t session_id);
 uint16_t SOMEIPSD_AddSdHeader (uint8_t *txBuf, uint16_t txLen);

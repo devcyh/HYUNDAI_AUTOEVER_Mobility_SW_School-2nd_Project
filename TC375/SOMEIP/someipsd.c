@@ -21,6 +21,8 @@ typedef struct
     uint16_t service_id;    // 구독한 서비스 ID
     uint16_t instance_id;   // 서비스 인스턴스 ID
     uint16_t eventgroup_id; // 구독한 이벤트 그룹 ID
+    uint32_t ttl;           // TTL (초 단위)
+    uint32_t expiry_time;   // 만료 시간 (시스템 틱)
     bool active;            // 활성 상태 플래그
 } SOMEIPSD_Client_t;
 
@@ -35,6 +37,8 @@ void SOMEIPSD_Recv_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, co
 void SOMEIPSD_HandleSubscribe (ip_addr_t client_ip, uint16_t client_port, uint8_t *entry, uint8_t **option_pointers,
         uint8_t option_count);
 bool SOMEIPSD_AddClient (ip_addr_t client_ip, uint16_t client_port, uint16_t service_id, uint16_t instance_id,
+        uint16_t eventgroup_id, uint32_t ttl);
+bool SOMEIPSD_RemoveClient (ip_addr_t client_ip, uint16_t client_port, uint16_t service_id, uint16_t instance_id,
         uint16_t eventgroup_id);
 void SOMEIPSD_SendSubEvtGrpAck (ip_addr_t client_ip, uint16_t service_id, uint16_t instance_id, uint16_t eventgroup_id,
         uint32_t ttl);
@@ -364,32 +368,44 @@ void SOMEIPSD_HandleSubscribe (ip_addr_t client_ip, uint16_t client_port, uint8_
                 return;
             }
 
-            // 클라이언트 추가 (Notification을 보낼 주소 사용)
-            if (SOMEIPSD_AddClient(notification_ip, notification_port, service_id, instance_id, eventgroup_id))
+            if (ttl > 0)
             {
-                // Subscribe Ack를 UDP 송신지로 전송
-                SOMEIPSD_SendSubEvtGrpAck(client_ip, service_id, instance_id, eventgroup_id, ttl);
+                // 클라이언트 추가 (Notification을 보낼 주소 사용)
+                if (SOMEIPSD_AddClient(notification_ip, notification_port, service_id, instance_id, eventgroup_id, ttl))
+                {
+                    // Subscribe Ack를 UDP 송신지로 전송
+                    SOMEIPSD_SendSubEvtGrpAck(client_ip, service_id, instance_id, eventgroup_id, ttl);
+                }
+                else
+                {
+                    my_printf("Failed to add client - max clients reached\n");
+                    // 여기서 SubscribeEventgroupNack를 보낼 수도 있음
+                }
             }
             else
             {
-                my_printf("Failed to add client - max clients reached\n");
-                // 여기서 SubscribeEventgroupNack를 보낼 수도 있음
+                SOMEIPSD_RemoveClient(notification_ip, notification_port, service_id, instance_id, eventgroup_id);
             }
         }
     }
 }
 
 bool SOMEIPSD_AddClient (ip_addr_t client_ip, uint16_t client_port, uint16_t service_id, uint16_t instance_id,
-        uint16_t eventgroup_id)
+        uint16_t eventgroup_id, uint32_t ttl)
 {
-    // 기존 클라이언트 확인 (중복 방지)
+    uint32_t current_time = sys_now(); // 현재 시스템 틱 (밀리초)
+    uint32_t expiry_time = current_time + (ttl * 1000); // TTL을 밀리초로 변환
+
+    // 기존 클라이언트 확인 (중복 방지 및 TTL 갱신)
     for (uint8_t i = 0; i < MAX_CLIENTS; i++)
     {
         if (g_clients[i].active && ip_addr_cmp(&g_clients[i].ip, &client_ip) && g_clients[i].port == client_port
                 && g_clients[i].service_id == service_id && g_clients[i].instance_id == instance_id
                 && g_clients[i].eventgroup_id == eventgroup_id)
         {
-            my_printf("Client already subscribed - updating entry\n");
+            my_printf("Client already subscribed - updating TTL\n");
+            g_clients[i].ttl = ttl;
+            g_clients[i].expiry_time = expiry_time;
             return true;
         }
     }
@@ -404,17 +420,37 @@ bool SOMEIPSD_AddClient (ip_addr_t client_ip, uint16_t client_port, uint16_t ser
             g_clients[i].service_id = service_id;
             g_clients[i].instance_id = instance_id;
             g_clients[i].eventgroup_id = eventgroup_id;
+            g_clients[i].ttl = ttl;
+            g_clients[i].expiry_time = expiry_time;
             g_clients[i].active = true;
 
             my_printf("Client added at slot %d\n", i);
-            my_printf("Client Info - IP: %d.%d.%d.%d:%d, Service: 0x%04X, EventGroup: 0x%04X\n", client_ip.addr & 0xFF,
-                    (client_ip.addr >> 8) & 0xFF, (client_ip.addr >> 16) & 0xFF, (client_ip.addr >> 24) & 0xFF,
-                    client_port, service_id, eventgroup_id);
+            my_printf("Client Info - IP: %d.%d.%d.%d:%d, Service: 0x%04X, EventGroup: 0x%04X, TTL: %d sec\n",
+                    client_ip.addr & 0xFF, (client_ip.addr >> 8) & 0xFF, (client_ip.addr >> 16) & 0xFF,
+                    (client_ip.addr >> 24) & 0xFF, client_port, service_id, eventgroup_id, ttl);
             return true;
         }
     }
 
     return false; // 슬롯이 가득 찬 경우
+}
+
+bool SOMEIPSD_RemoveClient (ip_addr_t client_ip, uint16_t client_port, uint16_t service_id, uint16_t instance_id,
+        uint16_t eventgroup_id)
+{
+    for (uint8_t i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (g_clients[i].active && ip_addr_cmp(&g_clients[i].ip, &client_ip) && g_clients[i].port == client_port
+                && g_clients[i].service_id == service_id && g_clients[i].instance_id == instance_id
+                && g_clients[i].eventgroup_id == eventgroup_id)
+        {
+            my_printf("Removing client at slot %d\n", i);
+            g_clients[i].active = false;
+//            memset(&g_clients[i], 0, sizeof(SOMEIPSD_Client_t));
+            return true;
+        }
+    }
+    return false;
 }
 
 void SOMEIPSD_SendSubEvtGrpAck (ip_addr_t client_ip, uint16_t service_id, uint16_t instance_id, uint16_t eventgroup_id,
