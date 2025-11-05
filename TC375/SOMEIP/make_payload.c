@@ -1,4 +1,4 @@
-#include "make_packet.h"
+#include "make_payload.h"
 
 // 1. SOME/IP Header (16 bytes)
 uint16_t SOMEIPSD_AddHeader (uint8_t *txBuf, uint32_t length, uint16_t session_id)
@@ -36,6 +36,22 @@ uint16_t SOMEIPSD_AddHeader (uint8_t *txBuf, uint32_t length, uint16_t session_i
     p[15] = return_code;
 
     return 16;
+}
+
+uint16_t SOMEIP_GetSessionID (uint8_t *txBuf)
+{
+    uint16_t session_id = (txBuf[10] << 8) | (txBuf[11]);
+    return session_id;
+}
+
+bool SOMEIP_SetSessionID (uint8_t *txBuf, uint16_t session_id)
+{
+    uint8_t *p = txBuf;
+
+    p[10] = (uint8_t) ((session_id >> 8) & 0xFF);
+    p[11] = (uint8_t) (session_id & 0xFF);
+
+    return true;
 }
 
 // 2. SD Header (4 bytes)

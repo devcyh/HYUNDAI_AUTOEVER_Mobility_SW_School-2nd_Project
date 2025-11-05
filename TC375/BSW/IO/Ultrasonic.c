@@ -16,7 +16,6 @@ static AverageFilter filters[ULTRASONIC_COUNT];
 static int max_events_per_call;
 
 static UltrasonicData_t latest_data[ULTRASONIC_COUNT];
-static bool data_ready[ULTRASONIC_COUNT] = {false};
 
 bool Ultrasonic_Init (int buffer_size, int max_events)
 {
@@ -91,7 +90,6 @@ void Ultrasonic_ProcessQueue (void)
                     latest_data[ult_idx].dist_raw_mm = dist_raw;
                     latest_data[ult_idx].dist_filt_mm = dist_filt;
                     latest_data[ult_idx].received_time_us = last_rise_time[ult_idx];
-                    data_ready[ult_idx] = true;
                 }
                 last_rise_time[ult_idx] = 0; // 다음 측정을 위해 초기화
             }
@@ -101,15 +99,11 @@ void Ultrasonic_ProcessQueue (void)
     }
 }
 
-bool Ultrasonic_GetLatestData (UltrasonicSide side, UltrasonicData_t *out)
+UltrasonicData_t Ultrasonic_GetLatestData (UltrasonicSide side)
 {
+    UltrasonicData_t err = {0, 0, 0};
     if (side >= ULTRASONIC_COUNT)
-        return false;
+        return err;
 
-    if (!data_ready[side])
-        return false;
-
-    *out = latest_data[side];
-    data_ready[side] = false;
-    return true;
+    return latest_data[side];
 }

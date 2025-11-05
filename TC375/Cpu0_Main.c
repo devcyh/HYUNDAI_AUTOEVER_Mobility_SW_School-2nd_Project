@@ -1,16 +1,13 @@
 #include "Cpu0_Init.h"
 
 #include "Ifx_Lwip.h"
+#include "someip.h"
 
 #include "stm.h"
-
 #include "my_stdio.h"
 #include "tof.h"
 #include "ultrasonic.h"
-
 #include "emer_alert.h"
-
-#include "someipsd.h"
 
 void core0_main (void)
 {
@@ -30,6 +27,12 @@ void core0_main (void)
         Ifx_Lwip_pollTimerFlags(); /* Poll LwIP timers and trigger protocols execution if required */
         Ifx_Lwip_pollReceiveFlags(); /* Receive data package through ETH */
 
+        /* Run emer alert */
+        EmerAlert_Update_Periodic();
+
+        /* Publish data to clients */
+        SOMEIP_SendNotification();
+
         /* Send someip-sd service offer periodically */
         static uint64_t pre_t = 0;
         uint64_t cur_t = STM0_getTimeUs();
@@ -38,8 +41,5 @@ void core0_main (void)
             SOMEIPSD_SendOfferService(broadcast_ip);
             pre_t = cur_t;
         }
-
-        /* Run emer alert */
-        EmerAlert_Update_Periodic();
     }
 }

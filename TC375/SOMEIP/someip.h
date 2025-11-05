@@ -44,5 +44,6 @@
 
 //bool SOMEIP_Init (void);
 //void SOMEIPSD_SendOfferService (ip_addr_t client_ip);
+//void SOMEIP_SendNotification (void);
 
 #endif /* SOMEIP_SOMEIP_H_ */

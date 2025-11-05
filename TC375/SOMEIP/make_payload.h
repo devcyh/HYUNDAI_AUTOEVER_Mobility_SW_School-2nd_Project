@@ -1,10 +1,13 @@
-#ifndef SOMEIP_SOMEIPSD_UTIL_H_
-#define SOMEIP_SOMEIPSD_UTIL_H_
+#ifndef SOMEIP_MAKE_PAYLOAD_H_
+#define SOMEIP_MAKE_PAYLOAD_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "ip_addr.h"
 
 uint16_t SOMEIPSD_AddHeader (uint8_t *txBuf, uint32_t length, uint16_t session_id);
+uint16_t SOMEIP_GetSessionID (uint8_t *txBuf);
+bool SOMEIP_SetSessionID (uint8_t *txBuf, uint16_t session_id);
 uint16_t SOMEIPSD_AddSdHeader (uint8_t *txBuf, uint16_t txLen);
 uint16_t SOMEIPSD_AddEntriesArrayLength (uint8_t *txBuf, uint16_t txLen, uint32_t length);
 uint16_t SOMEIPSD_AddServiceEntry (uint8_t *txBuf, uint16_t txLen, uint8_t type, uint8_t idx_opt1, uint8_t idx_opt2,
@@ -17,4 +20,4 @@ uint16_t SOMEIPSD_AddOptionsArrayLength (uint8_t *txBuf, uint16_t txLen, uint32_
 uint16_t SOMEIPSD_Add0xX4Option (uint8_t *txBuf, uint16_t txLen, uint8_t type, ip_addr_t ipv4_addr, uint8_t l4_proto,
         uint16_t port);
 
-#endif /* SOMEIP_SOMEIPSD_UTIL_H_ */
+#endif /* SOMEIP_MAKE_PAYLOAD_H_ */
