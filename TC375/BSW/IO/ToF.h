@@ -24,6 +24,6 @@ void ToF_RxHandler (uint8_t byte);
 void ToF_ProcessQueue (void);
 
 // 최신 데이터 가져오기
-bool ToF_GetLatestData (ToFData_t *out);
+ToFData_t ToF_GetLatestData (void);
 
 #endif /* BSW_IO_TOF_H_ */

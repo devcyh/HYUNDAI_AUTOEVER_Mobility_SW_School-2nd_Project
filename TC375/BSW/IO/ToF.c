@@ -13,7 +13,6 @@ static uint64_t header_timestamp_us[BYTE_QUEUE_MAX_BUF_SIZE];
 static int max_bytes_per_call;
 
 static ToFData_t latest_data;
-static bool data_ready = false;
 
 bool ToF_Init (int buffer_size, int max_bytes)
 {
@@ -99,7 +98,6 @@ void ToF_ProcessQueue (void)
                 if (parseToFPacket(packet, &latest_data))
                 {
                     latest_data.received_time_us = packet_start_time_us;
-                    data_ready = true;
                 }
                 packet_index = 0; // 다음 패킷 준비
             }
@@ -109,12 +107,7 @@ void ToF_ProcessQueue (void)
     }
 }
 
-bool ToF_GetLatestData (ToFData_t *out)
+ToFData_t ToF_GetLatestData (void)
 {
-    if (!data_ready)
-        return false;
-
-    *out = latest_data;
-    data_ready = false;
-    return true;
+    return latest_data;
 }
