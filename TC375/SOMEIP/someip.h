@@ -42,8 +42,8 @@
 #include <stdbool.h>
 #include "ip_addr.h"
 
-//bool SOMEIP_Init (void);
-//void SOMEIPSD_SendOfferService (ip_addr_t client_ip);
-//void SOMEIP_SendNotification (void);
+bool SOMEIP_Init (void);
+void SOMEIPSD_SendOfferService (const ip_addr_t *addr, const uint8_t *someip_header);
+void SOMEIP_SendNotification (void);
 
 #endif /* SOMEIP_SOMEIP_H_ */

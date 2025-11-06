@@ -1,6 +1,45 @@
 #include "make_payload.h"
 
 // 1. SOME/IP Header (16 bytes)
+void SOMEIP_SetServiceID (uint8_t *txBuf, uint16_t service_id)
+{
+    txBuf[0] = (uint8_t) ((service_id >> 8) & 0xFF);
+    txBuf[1] = (uint8_t) (service_id & 0xFF);
+}
+
+void SOMEIP_SetMethodID (uint8_t *txBuf, uint16_t method_id)
+{
+    txBuf[2] = (uint8_t) ((method_id >> 8) & 0xFF);
+    txBuf[3] = (uint8_t) (method_id & 0xFF);
+}
+
+void SOMEIP_SetLength (uint8_t *txBuf, uint32_t length)
+{
+    // SOME/IP Length 필드 업데이트 (Byte 4-7)
+    // Length = Payload 크기 + 8 (Message ID부터 Payload까지)
+    txBuf[4] = (length >> 24) & 0xFF;
+    txBuf[5] = (length >> 16) & 0xFF;
+    txBuf[6] = (length >> 8) & 0xFF;
+    txBuf[7] = length & 0xFF;
+}
+
+uint16_t SOMEIP_GetSessionID (uint8_t *txBuf)
+{
+    uint16_t session_id = (txBuf[10] << 8) | (txBuf[11]);
+    return session_id;
+}
+
+void SOMEIP_SetSessionID (uint8_t *txBuf, uint16_t session_id)
+{
+    txBuf[10] = (uint8_t) ((session_id >> 8) & 0xFF);
+    txBuf[11] = (uint8_t) (session_id & 0xFF);
+}
+
+void SOMEIP_SetMsgType (uint8_t *txBuf, uint8_t type)
+{
+    txBuf[14] = type;
+}
+
 uint16_t SOMEIPSD_AddHeader (uint8_t *txBuf, uint32_t length, uint16_t session_id)
 {
     static const uint16_t service_id = 0xFFFF;
@@ -36,22 +75,6 @@ uint16_t SOMEIPSD_AddHeader (uint8_t *txBuf, uint32_t length, uint16_t session_i
     p[15] = return_code;
 
     return 16;
-}
-
-uint16_t SOMEIP_GetSessionID (uint8_t *txBuf)
-{
-    uint16_t session_id = (txBuf[10] << 8) | (txBuf[11]);
-    return session_id;
-}
-
-bool SOMEIP_SetSessionID (uint8_t *txBuf, uint16_t session_id)
-{
-    uint8_t *p = txBuf;
-
-    p[10] = (uint8_t) ((session_id >> 8) & 0xFF);
-    p[11] = (uint8_t) (session_id & 0xFF);
-
-    return true;
 }
 
 // 2. SD Header (4 bytes)

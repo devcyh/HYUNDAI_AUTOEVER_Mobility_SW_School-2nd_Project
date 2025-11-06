@@ -46,18 +46,7 @@ static struct udp_pcb *g_SOMEIP_SERVICE3_PCB;
 static SOMEIPSD_Client_t g_clients[MAX_CLIENTS];
 static IIMap g_sd_sessions;
 
-static inline void SOMEIP_Update_Length (uint8_t *txBuf, uint16_t txLen)
-{
-    // SOME/IP Length 필드 업데이트 (Byte 4-7)
-    // Length = Payload 크기 + 8 (Message ID부터 Payload까지)
-    uint32_t length = txLen - 8;
-    txBuf[4] = (length >> 24) & 0xFF;
-    txBuf[5] = (length >> 16) & 0xFF;
-    txBuf[6] = (length >> 8) & 0xFF;
-    txBuf[7] = length & 0xFF;
-}
-
-static err_t SOMEIP_Send_Data (struct udp_pcb *upcb, uint8_t *txBuf, uint16_t txLen, const ip_addr_t *ip, uint16_t port)
+static err_t SOMEIP_SendData (struct udp_pcb *upcb, uint8_t *txBuf, uint16_t txLen, const ip_addr_t *ip, uint16_t port)
 {
     struct pbuf *txBuf2 = pbuf_alloc(PBUF_TRANSPORT, txLen, PBUF_RAM);
     if (txBuf2 == NULL)
@@ -72,14 +61,14 @@ static err_t SOMEIP_Send_Data (struct udp_pcb *upcb, uint8_t *txBuf, uint16_t tx
         return err;
     }
 
-    uint32_t session_id = SOMEIP_GetSessionID(txBuf2);
+    uint32_t session_id = (uint32_t) SOMEIP_GetSessionID((uint8_t*) txBuf2);
     if (session_id == 0)
     {
         if (!iiMap_find(&g_sd_sessions, ip->addr, &session_id))
         {
             session_id = 1;
         }
-        SOMEIP_SetSessionID(txBuf2, session_id);
+        SOMEIP_SetSessionID((uint8_t*) txBuf2, (uint16_t) session_id);
     }
 
     // 응답 전송
@@ -164,10 +153,10 @@ void SOMEIP_Service1_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
         if (txLen > 0)
         {
             // SOME/IP Length 필드 업데이트
-            SOMEIP_Update_Length(txBuf, txLen);
+            SOMEIP_SetLength(txBuf, txLen - 8);
 
             // 응답 전송
-            SOMEIP_Send_Data(upcb, txBuf, txLen, addr, port);
+            SOMEIP_SendData(upcb, txBuf, txLen, addr, port);
         }
     }
     else if (ServiceID != METHOD_ID_PR)
@@ -278,10 +267,10 @@ void SOMEIP_Service2_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
         if (txLen > 0)
         {
             // SOME/IP Length 필드 업데이트
-            SOMEIP_Update_Length(txBuf, txLen);
+            SOMEIP_SetLength(txBuf, txLen - 8);
 
             // 응답 전송
-            SOMEIP_Send_Data(upcb, txBuf, txLen, addr, port);
+            SOMEIP_SendData(upcb, txBuf, txLen, addr, port);
         }
     }
     else if (ServiceID != SERVICE_ID_CONTROL)
@@ -369,10 +358,10 @@ void SOMEIP_Service3_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
         if (txLen > 0)
         {
             // SOME/IP Length 필드 업데이트
-            SOMEIP_Update_Length(txBuf, txLen);
+            SOMEIP_SetLength(txBuf, txLen - 8);
 
             // 응답 전송
-            SOMEIP_Send_Data(upcb, txBuf, txLen, addr, port);
+            SOMEIP_SendData(upcb, txBuf, txLen, addr, port);
         }
     }
     else if (ServiceID != SERVICE_ID_SYSTEM)
@@ -385,10 +374,106 @@ void SOMEIP_Service3_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, 
 
 void SOMEIP_SendNotification (void)
 {
+    static uint64_t last_sent_time_pr = 0;
+    static uint64_t last_sent_time_tof = 0;
+    static uint64_t last_sent_time_ult[ULTRASONIC_COUNT] = {0};
 
+    uint32_t current_time = sys_now();
+
+    PRData_t pr_data = PR_GetData();
+    ToFData_t tof_data = ToF_GetLatestData();
+    UltrasonicData_t ult_data[ULTRASONIC_COUNT];
+    for (int i = 0; i < ULTRASONIC_COUNT; i++)
+    {
+        ult_data[i] = Ultrasonic_GetLatestData(i);
+    }
+
+    uint8_t txBuf[256];
+    uint16_t txLen = 0;
+
+    // 모든 활성 클라이언트 순회
+    for (uint8_t i = 0; i < MAX_CLIENTS; i++)
+    {
+        if (!g_clients[i].active)
+            continue;
+
+        // TTL 만료 확인
+        if (current_time >= g_clients[i].expiry_time)
+        {
+            my_printf("Client subscription expired at slot %d\n", i);
+            g_clients[i].active = false;
+            continue;
+        }
+
+        // Service ID가 SENSOR가 아니면 스킵
+        if (g_clients[i].service_id != SERVICE_ID_SENSOR)
+            continue;
+
+        // EventGroup ID에 따라 처리
+        if (g_clients[i].eventgroup_id == EVENTGROUP_ID_PR)
+        {
+            // 새로운 데이터가 있는지 확인
+            if (pr_data.received_time_us > last_sent_time_pr)
+            {
+                // SOME/IP 헤더 구성
+                txLen = SOMEIPSD_AddHeader(txBuf, 0, 0);
+                SOMEIP_SetServiceID(txBuf, SERVICE_ID_SENSOR);
+                SOMEIP_SetMethodID(txBuf, EVENT_ID_PR_DATA);
+                SOMEIP_SetMsgType(txBuf, 0x02); // Message Type: Notification
+
+                // Payload 추가
+                txLen = Serialize_PRData(txBuf, txLen, &pr_data);
+                SOMEIP_SetLength(txBuf, txLen - 8);
+
+                // 데이터 전송
+                SOMEIP_SendData(g_SOMEIP_SERVICE1_PCB, txBuf, txLen, &g_clients[i].ip, g_clients[i].port);
+
+                last_sent_time_pr = pr_data.received_time_us;
+            }
+        }
+        else if (g_clients[i].eventgroup_id == EVENTGROUP_ID_TOF)
+        {
+            if (tof_data.received_time_us > last_sent_time_tof)
+            {
+                txLen = SOMEIPSD_AddHeader(txBuf, 0, 0);
+                SOMEIP_SetServiceID(txBuf, SERVICE_ID_SENSOR);
+                SOMEIP_SetMethodID(txBuf, EVENT_ID_TOF_DATA);
+                SOMEIP_SetMsgType(txBuf, 0x02);
+
+                txLen = Serialize_ToFData(txBuf, txLen, &tof_data);
+                SOMEIP_SetLength(txBuf, txLen - 8);
+
+                SOMEIP_SendData(g_SOMEIP_SERVICE1_PCB, txBuf, txLen, &g_clients[i].ip, g_clients[i].port);
+
+                last_sent_time_tof = tof_data.received_time_us;
+            }
+        }
+        else if (g_clients[i].eventgroup_id == EVENTGROUP_ID_ULT)
+        {
+            // 각 초음파 센서별로 이벤트 전송
+            for (int j = 0; j < ULTRASONIC_COUNT; j++)
+            {
+                if (ult_data[j].received_time_us > last_sent_time_ult[j])
+                {
+                    txLen = SOMEIPSD_AddHeader(txBuf, 0, 0);
+                    SOMEIP_SetServiceID(txBuf, SERVICE_ID_SENSOR);
+                    uint16_t event_id = EVENT_ID_ULT_1 + j;
+                    SOMEIP_SetMethodID(txBuf, event_id);
+                    SOMEIP_SetMsgType(txBuf, 0x02);
+
+                    txLen = Serialize_UltrasonicData(txBuf, txLen, &ult_data[j]);
+                    SOMEIP_SetLength(txBuf, txLen - 8);
+
+                    SOMEIP_SendData(g_SOMEIP_SERVICE1_PCB, txBuf, txLen, &g_clients[i].ip, g_clients[i].port);
+
+                    last_sent_time_ult[j] = ult_data[j].received_time_us;
+                }
+            }
+        }
+    }
 }
 
-void SOMEIPSD_SendOfferService (const uint8_t *someip_header, const ip_addr_t *addr)
+void SOMEIPSD_SendOfferService (const ip_addr_t *addr, const uint8_t *someip_header)
 {
     static const int MSG_SIZE = 112;
     uint8_t MSG_OfferService[MSG_SIZE]; // 16 * 4 + 12 * 3 + 4 * 3 = 64 + 36 + 12 = 112
@@ -397,11 +482,17 @@ void SOMEIPSD_SendOfferService (const uint8_t *someip_header, const ip_addr_t *a
     uint8_t *ip = Ifx_Lwip_getIpAddrPtr(); // 이놈 빅엔디안으로 TC375 ip 주소 내뱉는듯
     ip_addr_t ip_addr; // 얘는 리틀엔디안인듯
     IP4_ADDR(&ip_addr, ip[0], ip[1], ip[2], ip[3]);
-    uint32_t session_id = 0;
 
-    // recv한 someip_header있으면 그거 사용하도록 코드 수정 필요
+    if (someip_header)
+    {
+        memcpy(MSG_OfferService, someip_header, 16); // SOME/IP 헤더 복사 (16 bytes)
+        SOMEIP_SetLength(MSG_OfferService, MSG_SIZE - 8);
+    }
+    else
+    {
+        txLen = SOMEIPSD_AddHeader(MSG_OfferService, MSG_SIZE - 8, 0);
+    }
 
-    txLen = SOMEIPSD_AddHeader(MSG_OfferService, MSG_SIZE - 8, session_id);
     txLen = SOMEIPSD_AddSdHeader(MSG_OfferService, txLen);
     txLen = SOMEIPSD_AddEntriesArrayLength(MSG_OfferService, txLen, 48); // 16 * 3
     txLen = SOMEIPSD_AddServiceEntry(MSG_OfferService, txLen, 0x01, 0, 0, 1, 0, SERVICE_ID_SENSOR, INSTANCE_ID, 1, 3,
@@ -416,7 +507,7 @@ void SOMEIPSD_SendOfferService (const uint8_t *someip_header, const ip_addr_t *a
     txLen = SOMEIPSD_Add0xX4Option(MSG_OfferService, txLen, 0x04, ip_addr, 0x11, PN_SERVICE_3); // Option 3
 
     ip_addr_t client_ip = *addr;
-    err_t err = SOMEIP_Send_Data(g_SOMEIPSD_PCB, MSG_OfferService, txLen, &client_ip, PN_SOMEIPSD);
+    err_t err = SOMEIP_SendData(g_SOMEIPSD_PCB, MSG_OfferService, txLen, &client_ip, PN_SOMEIPSD);
     if (err == ERR_OK)
     {
         uint8_t ip_a = client_ip.addr & 0xFF;
@@ -434,23 +525,22 @@ void SOMEIPSD_SendOfferService (const uint8_t *someip_header, const ip_addr_t *a
     }
 }
 
-void SOMEIPSD_SendSubEvtGrpAck (const uint8_t *someip_header, const ip_addr_t *addr, uint16_t service_id,
+void SOMEIPSD_SendSubEvtGrpAck (const ip_addr_t *addr, const uint8_t *someip_header, uint16_t service_id,
         uint16_t instance_id, uint16_t eventgroup_id, uint32_t ttl)
 {
     uint8_t MSG_SubEvtGrpAck[100];
     uint16_t txLen = 0;
-    uint32_t session_id = 0;
 
-    // recv한 someip_header있으면 그거 사용하도록 코드 수정 필요
+    memcpy(MSG_SubEvtGrpAck, someip_header, 16); // SOME/IP 헤더 복사 (16 bytes)
+    SOMEIP_SetLength(MSG_SubEvtGrpAck, 40);
 
-    txLen = SOMEIPSD_AddHeader(MSG_SubEvtGrpAck, 40, session_id);
     txLen = SOMEIPSD_AddSdHeader(MSG_SubEvtGrpAck, txLen);
     txLen = SOMEIPSD_AddEntriesArrayLength(MSG_SubEvtGrpAck, txLen, 16);
     txLen = SOMEIPSD_AddEventgroupEntry(MSG_SubEvtGrpAck, txLen, 0x07, 0, 0, 0, 0, service_id, instance_id, 1, ttl, 0,
             eventgroup_id);
 
     ip_addr_t client_ip = *addr;
-    err_t err = SOMEIP_Send_Data(g_SOMEIPSD_PCB, MSG_SubEvtGrpAck, txLen, &client_ip, PN_SOMEIPSD);
+    err_t err = SOMEIP_SendData(g_SOMEIPSD_PCB, MSG_SubEvtGrpAck, txLen, &client_ip, PN_SOMEIPSD);
     if (err == ERR_OK)
     {
         uint8_t ip_a = client_ip.addr & 0xFF;
@@ -488,9 +578,16 @@ bool SOMEIPSD_AddClient (ip_addr_t client_ip, uint16_t client_port, uint16_t ser
         }
     }
 
-    // 빈 슬롯 찾기
     for (uint8_t i = 0; i < MAX_CLIENTS; i++)
     {
+        // 만료된 클라이언트 정리
+        if (g_clients[i].active && current_time >= g_clients[i].expiry_time)
+        {
+            my_printf("Client subscription expired at slot %d - cleaning up\n", i);
+            g_clients[i].active = false;
+        }
+
+        // 빈 슬롯에 삽입
         if (!g_clients[i].active)
         {
             g_clients[i].ip = client_ip;
@@ -531,10 +628,10 @@ bool SOMEIPSD_RemoveClient (ip_addr_t client_ip, uint16_t client_port, uint16_t 
     return false;
 }
 
-void SOMEIPSD_HandleSubscribe (const uint8_t *someip_header, const ip_addr_t *addr, uint8_t *entry,
+void SOMEIPSD_HandleSubscribe (const ip_addr_t *addr, const uint8_t *someip_header, uint8_t *entry,
         uint8_t **option_pointers, uint8_t option_count)
 {
-    // Entry에서 Service ID, Instance ID, EventGroup ID 추출
+// Entry에서 Service ID, Instance ID, EventGroup ID 추출
     uint16_t service_id = (entry[4] << 8) | entry[5];
     uint16_t instance_id = (entry[6] << 8) | entry[7];
     uint8_t major_version = entry[8];
@@ -542,7 +639,7 @@ void SOMEIPSD_HandleSubscribe (const uint8_t *someip_header, const ip_addr_t *ad
     uint8_t counter = entry[13] & 0x0F;
     uint16_t eventgroup_id = (entry[14] << 8) | entry[15];
 
-    // Entry의 Option Index 정보 추출
+// Entry의 Option Index 정보 추출
     uint8_t index1 = entry[1];
     uint8_t index2 = entry[2];
     uint8_t num_opts1 = (entry[3] >> 4) & 0x0F;  // Number of Opts 1
@@ -557,7 +654,7 @@ void SOMEIPSD_HandleSubscribe (const uint8_t *someip_header, const ip_addr_t *ad
             || !(eventgroup_id == EVENTGROUP_ID_PR || eventgroup_id == EVENTGROUP_ID_TOF
                     || eventgroup_id == EVENTGROUP_ID_ULT))
     {
-        // 잘못된 요청?
+        // 잘못된 요청
         // 여기서 SubscribeEventgroupNack를 보낼 수도 있음
         return;
     }
@@ -671,7 +768,7 @@ void SOMEIPSD_HandleSubscribe (const uint8_t *someip_header, const ip_addr_t *ad
                 if (SOMEIPSD_AddClient(notification_ip, notification_port, service_id, instance_id, eventgroup_id, ttl))
                 {
                     // Subscribe Ack를 UDP 송신지로 전송
-                    SOMEIPSD_SendSubEvtGrpAck(someip_header, addr, service_id, instance_id, eventgroup_id, ttl);
+                    SOMEIPSD_SendSubEvtGrpAck(addr, someip_header, service_id, instance_id, eventgroup_id, ttl);
                 }
                 else
                 {
@@ -751,7 +848,7 @@ void SOMEIPSD_Recv_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, co
             switch (entry_type)
             {
                 case 0x00 : // FindService
-                    SOMEIPSD_SendOfferService(buf, addr);
+                    SOMEIPSD_SendOfferService(addr, buf);
                     break;
                 case 0x01 : // OfferService, StopOfferService
                     my_printf("Received OfferService\n");
@@ -759,7 +856,7 @@ void SOMEIPSD_Recv_Callback (void *arg, struct udp_pcb *upcb, struct pbuf *p, co
                     break;
 
                 case 0x06 : // SubscribeEventgroup, StopSubscribeEventgroup
-                    SOMEIPSD_HandleSubscribe(buf, addr, entry, option_pointers, option_count);
+                    SOMEIPSD_HandleSubscribe(addr, buf, entry, option_pointers, option_count);
                     break;
 
                 case 0x07 : // SubscribeEventgroupAck, SubscribeEventgroupNack

@@ -14,6 +14,7 @@ void core0_main (void)
     if (!core0_init())
         return;
 
+    const uint64_t offer_interval_us = 10000000; // 10sec
     ip_addr_t broadcast_ip;
     IP4_ADDR(&broadcast_ip, 192, 168, 2, 255);
 
@@ -36,9 +37,9 @@ void core0_main (void)
         /* Send someip-sd service offer periodically */
         static uint64_t pre_t = 0;
         uint64_t cur_t = STM0_getTimeUs();
-        if (cur_t - pre_t > 10000000)
+        if (cur_t - pre_t > offer_interval_us)
         {
-            SOMEIPSD_SendOfferService(broadcast_ip);
+            SOMEIPSD_SendOfferService(&broadcast_ip, NULL);
             pre_t = cur_t;
         }
     }
